@@ -44,7 +44,7 @@ class Cone(geometry.Point):
 
 class DataSet:
 
-    def __init__(self,tif_fn,ecc_mm,mm_per_pixel,):
+    def __init__(self,tif_fn,ecc_mm,mm_per_pixel):
         self.tif_fn = tif_fn
         head,tail = os.path.split(tif_fn)
         self.dname = head
@@ -730,8 +730,9 @@ class ConeSet:
 
 class RegionSet:
     
-    def __init__(self,x,y,mask):
+    def __init__(self,x,y,mask,label='no_label'):
         """ The mask is a binary 2D array containing 1s in valid regions and 0s elsewhere. """
+        self.label = label
         self.items = []
         #print 'Starting with %d items.'%(len(self.items))
         xy = np.vstack((x,y)).T
@@ -835,6 +836,30 @@ class RegionSet:
         return ri,vals,nbins
         
 
+    def make_regularity_table(self,fn):
+        avals = np.array(self.get_area())
+        rvals = np.sqrt(avals/np.pi)
+
+        plt.figure()
+        for idx,r in enumerate(self.items):
+            r.plot(plot_type=idx)
+
+        ax = plt.gca()
+        plt.axis('image')
+        ax.set_ylim(ax.get_ylim()[::-1])
+        plt.xticks([])
+        plt.yticks([])
+        
+        plt.savefig(fn+'_regularity_table_map.png')
+        plt.close()
+
+        outfid = open(fn+'_regularity_table.csv','w')
+        outfid.write('index,area,radius,\n')
+        for idx,(a,r) in enumerate(zip(avals,rvals)):
+            outfid.write('%04d,%0.1f,%0.1f,\n'%(idx,a,r))
+        outfid.close()
+
+    
         
 class HexGrid(RegionSet):
 
