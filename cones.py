@@ -16,7 +16,10 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.optimize import curve_fit
 import csv
 import geometry
-from cone_tools import threshold,high_contrast,centroid_objects,strel,gaussian_blur,background_subtract
+from cone_tools import threshold,high_contrast,centroid_objects,strel,gaussian_blur,background_subtract,Cone
+from matplotlib.collections import PatchCollection
+from matplotlib import cm
+
 
 DEFAULT_SIGMA = 2.0
 DEFAULT_FRAC = 0.001
@@ -27,20 +30,6 @@ H0 = 0.00
 H1 = .4
 HSTEP = 0.002
 RIPLEY_MM_RANGE = np.arange(H0,H1,HSTEP)
-
-class Cone(geometry.Point):
-
-    def __init__(self,x,y,label):
-        self.x = x
-        self.y = y
-        self.label = label
-        
-    def __str__(self):
-        return '%0.2f,%0.2f,%s'%(self.x,self.y,self.label)
-
-    def __repr__(self):
-        return '%0.2f,%0.2f,%s'%(self.x,self.y,self.label)
-
 
 class DataSet:
 
@@ -834,6 +823,18 @@ class RegionSet:
         ri = np.mean(vals)/np.std(vals)
 
         return ri,vals,nbins
+
+    def get_patch_collection(self,alpha=1.0,func='get_area'):
+
+        # first, figure out the distribution of func:
+        vals = np.array(eval('self.%s()'%func))
+        #vals = (vals - np.min(vals))/(np.max(vals)-np.min(vals))#*float(cmap.N-1)
+        patches = []
+        for item,val in zip(self.items,vals):
+            p = item.get_patch()
+            patches.append(p)
+        pc = PatchCollection(patches)
+        return pc,vals
         
 
     def make_regularity_table(self,fn):

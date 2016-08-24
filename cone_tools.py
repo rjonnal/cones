@@ -9,6 +9,22 @@ from scipy import ndimage
 from scipy import signal
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.optimize import curve_fit
+import geometry
+
+
+class Cone(geometry.Point):
+
+    def __init__(self,x,y,label):
+        self.x = x
+        self.y = y
+        self.label = label
+        
+    def __str__(self):
+        return '%0.2f,%0.2f,%s'%(self.x,self.y,self.label.lower())
+
+    def __repr__(self):
+        return '%0.2f,%0.2f,%s'%(self.x,self.y,self.label.lower())
+
 
 class Centroider:
 
@@ -103,3 +119,116 @@ def threshold(g,sigma,frac,nbins,erosion_diameter):
     gt[np.where(g<gthreshold)] = 0.0
     gto = morphology.grey_erosion(gt,footprint=strel(diameter=erosion_diameter))
     return gto
+
+def find_cones(im0,cfn,sigma,neighborhood_size):
+
+    im = im0.astype(np.float).mean(axis=2)
+    cone_dict = {}
+    sy,sx = im.shape
+    sx_inches = 7.5
+    sy_inches = float(sy)/float(sx)*7.5
+    figsize = (sx_inches,sy_inches)
+    r = im0[:,:,0]
+    g = im0[:,:,1]
+    drawing = []
+    
+    if os.path.exists(cfn):
+        temp = np.loadtxt(cfn)
+        td = {}
+        td[0] = 'S'
+        td[1] = 'LM'
+        for item in temp:
+            cone_dict[(item[0],item[1])] = Cone(item[0],item[1],td[item[2]])
+        coords = temp
+
+    else:
+        kernel_size = 11
+        xx,yy = np.meshgrid(np.arange(kernel_size),np.arange(kernel_size))
+        xx = xx.astype(np.float) - (kernel_size-1)/2
+        yy = yy.astype(np.float) - (kernel_size-1)/2
+        rad = xx**2+yy**2
+
+        g = np.exp(-rad/(2*sigma**2))
+        gsum = np.sum(g)
+        data = signal.convolve2d(im,g,'same')/gsum
+
+
+        data_max = filters.maximum_filter(data, neighborhood_size)
+
+        npan = 3
+        plt.subplot(1,npan,1)
+        plt.cla()
+        plt.imshow(im,cmap='gray')
+        plt.subplot(1,npan,2)
+        plt.cla()
+        plt.imshow(data,cmap='gray')
+        plt.subplot(1,npan,3)
+        plt.cla()
+        plt.imshow(data_max)
+        plt.show()
+        plt.pause(1)
+
+        maxima = (data == data_max)
+
+        labeled, num_objects = ndimage.label(maxima)
+
+        slices = ndimage.find_objects(labeled)
+        x, y = [], []
+
+        for dy,dx in slices:
+            x_center = (dx.start + dx.stop - 1)/2
+            x.append(x_center)
+            y_center = (dy.start + dy.stop - 1)/2    
+            y.append(y_center)
+
+        coords = []
+        s_coords = []
+
+        s = im0[:,:,1]
+        lm = im0[:,:,0]
+
+        for xi,yi in zip(x,y):
+            smean = np.mean(s[yi-1:yi+2,xi-1:xi+2])
+            lmmean = np.mean(lm[yi-1:yi+2,xi-1:xi+2])
+            if smean>lmmean:
+                coords.append([xi,yi,0])
+                cone_dict[(xi,yi)] = Cone(xi,yi,'S')
+                s_coords.append([xi,yi])
+            else:
+                coords.append([xi,yi,1])
+                cone_dict[(xi,yi)] = Cone(xi,yi,'LM')
+
+
+        fid = open(cfn,'w')
+        for cone in cone_dict.values():
+            fid.write('%s\n'%cone)
+        fid.close()
+        
+    #     sys.exit()
+
+    #     plt.figure()
+    #     plt.imshow(im,cmap='gray')
+    #     plt.figure()
+    #     plt.imshow(im,cmap='gray')
+    #     plt.autoscale(False)
+        
+    #     for xi,yi in zip(x,y):
+    #         plt.plot(xi,yi,'r.')
+    #     plt.show()
+    #     sys.exit()
+
+    #     coords = np.array(coords)
+    #     np.savetxt(cfn,coords)
+    #     coords = coords
+
+    # lm_coords = []
+    # s_coords = []
+    # for cone in cone_dict.values():
+    #     if cone.label=='S':
+    #         s_coords.append([cone.x,cone.y])
+    #     else:
+    #         lm_coords.append([cone.x,cone.y])
+    #     cone_dict[(cone.x,cone.y)]=cone
+
+    # lm_coords = np.array(lm_coords)
+    # s_coords = np.array(s_coords)
